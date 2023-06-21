@@ -29,6 +29,14 @@ def project_to_constraint(X, a):
     print(a.T@P@a)
     return P
 
+def constraint_objective(X,points):
+    outer_products = np.array([np.outer(point,point) for point in points])
+    # return np.sum(outer_products,axis=0)
+    dim = ai.shape[1]
+    val = np.array([a.T@X@a -1 for a in points])
+    gradients = outer_products * np.broadcast_to(val[:,np.newaxis,np.newaxis],(points.shape[0],dim,dim))
+    return np.sum(gradients,axis=0)
+
 def gradient_descent(ai, learning_rate=0.1, max_iterations=1000, tolerance=1e-6):
     dim = ai.shape[1]  # Dimension of the matrix X
     X = np.eye(dim)  # Initial guess for X
@@ -37,21 +45,22 @@ def gradient_descent(ai, learning_rate=0.1, max_iterations=1000, tolerance=1e-6)
     
     X = np.linalg.svd(X)[0]
     X = X @ np.diag([1, 2, 3]) @ X.T
+    lr2 = 0.01
 
     for i in range(max_iterations):
         grad = gradient(X)
-        X -= learning_rate * grad
+        X -= learning_rate * (grad + 2*constraint_objective(X,ai))
 
 
-        for vector in ai:
-            X = project_to_constraint(X, vector)
+        # for vector in ai:
+        #     X = project_to_constraint(X, vector)
 
         X = project_to_definite_positive(X)
 
         if np.linalg.norm(grad) < tolerance:
             break
 
-        # print(np.linalg.det(X))
+        print(np.linalg.det(X))
     return X
 
 # ]]Example usage
