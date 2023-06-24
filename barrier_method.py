@@ -7,7 +7,7 @@ BARRIER_METHOD_T0 = 1
 BARRIER_METHOD_MU_FACTOR = 4
 LINE_SEARCH_ALPHA = 0.4
 LINE_SEARCH_BETA = 0.5
-
+GRADIENT_DECENT_MOMENTUM = 0.9
 
 
 def objective(X):
@@ -40,7 +40,6 @@ def project_to_definite_positive(X, minimal_eigenvalue):
     eigenvals, eigenvects = np.linalg.eigh(X)
     if not np.any(eigenvals < 0):
         return X, False
-    print('!!!!')
     eigenvals[eigenvals < 0] = minimal_eigenvalue
     projected_X = eigenvects @ np.diag(eigenvals) @ eigenvects.T
 
@@ -67,24 +66,20 @@ def backtrack_line_search(X, move_direction, objective_function, alpha = LINE_SE
 
     return t
 
-def gradient_descent(objective_function, objective_gradient, initial_guess, ai, max_iterations=20000, tolerance=1e-12, momentum = 0.90):
+def gradient_descent(objective_function, objective_gradient, initial_guess, ai, min_iterations = None, tolerance=1e-12, momentum = GRADIENT_DECENT_MOMENTUM):
 
     X = initial_guess
-
-    it = range(max_iterations) if max_iterations else itertools.count()
 
     change = np.zeros(X.shape)
 
     old_objective = np.inf
 
-    for i in it:
+    for i in itertools.count():
         grad = objective_gradient(X)
 
         step_size = backtrack_line_search(X, -grad, objective_function)
 
-
         new_change = step_size * grad + momentum * change
-
 
         if np.isnan(objective_function(X - new_change)) or not is_matrix_positive(X - new_change):
             new_change = step_size * grad
@@ -93,30 +88,24 @@ def gradient_descent(objective_function, objective_gradient, initial_guess, ai, 
             change = new_change
 
         X -= new_change
-        # print(objective_function(X))
 
         X, changed = project_to_definite_positive(X, minimal_eigenvalue=0.0001)
         if changed:
             m = max([constraint(X, v) + 1 for v in ai])
             if m > 1:
                 X = X / (m + 0.001)
-        # print(objective_function(X))
 
         new_objective = objective_function(X)
-        if old_objective - new_objective < tolerance:
-            print(f"i= {i}")
-            break
-        old_objective = new_objective
-
-        if not i % 2000:
+        if old_objective - new_objective < tolerance and (not min_iterations or i > min_iterations):
             print(f"round {i}::")
-            print("\tafter:", ' '.join([f"{v.T @ X @ v:.3}" for v in ai]))
+            print("\tafter:", np.array([v.T @ X @ v for v in ai]).mean())
             print("\tgradient norm:", np.linalg.norm(grad))
             print("\tdeterminant: ", np.linalg.det(X))
             print("\tobjective: ", objective_function(X))
             print("\tstep size:", step_size)
 
-
+            break
+        old_objective = new_objective
 
     return X
 
@@ -127,25 +116,26 @@ def solve(ai, tolerance = 0.0001):
 
     X = np.eye(dim) / (max_norm**2.01)  # Initial guess for X
 
-    t = 1
+    t = BARRIER_METHOD_T0
     mu_factor = BARRIER_METHOD_MU_FACTOR
 
     while m / t > tolerance:
         print(t)
         current_objective_function = lambda X: t * objective(X) + constraints_barrier(X, ai)
         current_objective_gradient = lambda X: t * objective_gradient(X) + constraints_barrier_gradient(X, ai)
+        min_iterations = None if m / (t * mu_factor) < tolerance else 50
         X =  gradient_descent(objective_function=current_objective_function,
                               objective_gradient=current_objective_gradient,
                               initial_guess=X,
                               ai=ai,
-                              max_iterations=None)
+                              min_iterations=50)
         t = t * mu_factor
 
     return X
 
 # ]]Example usage
 np.random.seed(2)
-ai = np.random.normal(0, 10, 120).reshape((15, 8))
+ai = np.random.normal(0, 10, 15).reshape((5, 3))
 
 
 X_optimized = solve(ai)
@@ -154,7 +144,3 @@ print(X_optimized)
 print(objective(X_optimized))
 eigenvals, eigenvects = np.linalg.eigh(X_optimized)
 print(eigenvals)
-
-
-for vector in ai:
-    print(vector.T@X_optimized@vector)
