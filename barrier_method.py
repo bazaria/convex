@@ -67,7 +67,7 @@ def backtrack_line_search(X, move_direction, objective_function, alpha = LINE_SE
 
     return t
 
-def gradient_descent(objective_function, objective_gradient, initial_guess, ai, max_iterations=20000, tolerance=1e-6, momentum = 0.90):
+def gradient_descent(objective_function, objective_gradient, initial_guess, ai, max_iterations=20000, tolerance=1e-12, momentum = 0.90):
 
     X = initial_guess
 
@@ -75,13 +75,13 @@ def gradient_descent(objective_function, objective_gradient, initial_guess, ai, 
 
     change = np.zeros(X.shape)
 
+    old_objective = np.inf
+
     for i in it:
         grad = objective_gradient(X)
 
         step_size = backtrack_line_search(X, -grad, objective_function)
 
-        if np.linalg.norm(grad) < tolerance:
-            break
 
         new_change = step_size * grad + momentum * change
 
@@ -102,6 +102,12 @@ def gradient_descent(objective_function, objective_gradient, initial_guess, ai, 
                 X = X / (m + 0.001)
         # print(objective_function(X))
 
+        new_objective = objective_function(X)
+        if old_objective - new_objective < tolerance:
+            print(f"i= {i}")
+            break
+        old_objective = new_objective
+
         if not i % 2000:
             print(f"round {i}::")
             print("\tafter:", ' '.join([f"{v.T @ X @ v:.3}" for v in ai]))
@@ -115,7 +121,7 @@ def gradient_descent(objective_function, objective_gradient, initial_guess, ai, 
     return X
 
 
-def solve(ai, tolerance = 0.001):
+def solve(ai, tolerance = 0.0001):
     m, dim = ai.shape # Dimension of the matrix X
     max_norm = np.max(np.linalg.norm(ai, axis=1))
 
@@ -132,15 +138,14 @@ def solve(ai, tolerance = 0.001):
                               objective_gradient=current_objective_gradient,
                               initial_guess=X,
                               ai=ai,
-                              max_iterations=None,
-                              tolerance=0.001)
+                              max_iterations=None)
         t = t * mu_factor
 
     return X
 
 # ]]Example usage
 np.random.seed(2)
-ai = np.random.normal(0, 10, 800).reshape((100, 8))
+ai = np.random.normal(0, 10, 120).reshape((15, 8))
 
 
 X_optimized = solve(ai)
